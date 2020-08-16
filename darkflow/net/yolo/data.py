@@ -97,12 +97,14 @@ def shuffle(self):
     data = self.parse()
     size = len(data)
 
+
     print('Dataset of {} instance(s)'.format(size))
     if batch > size: self.FLAGS.batch = batch = size
     batch_per_epoch = int(size / batch)
 
     for i in range(self.FLAGS.epoch):
         shuffle_idx = perm(np.arange(size))
+        count_sample = 0
         for b in range(batch_per_epoch):
             # yield these
             x_batch = list()
@@ -128,9 +130,9 @@ def shuffle(self):
                     feed_batch[key] = np.concatenate([ 
                         old_feed, [new] 
                     ])      
-            
-            x_batch = np.concatenate(x_batch, 0)
-            yield x_batch, feed_batch
+            count_sample += 1
+            x_batch = np.concatenate(x_batch, 0,)
+            yield x_batch, feed_batch, count_sample, size
         
         print('Finish {} epoch(es)'.format(i + 1))
 

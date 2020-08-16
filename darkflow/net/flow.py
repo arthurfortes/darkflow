@@ -5,6 +5,7 @@ import tensorflow as tf
 import pickle
 from multiprocessing.pool import ThreadPool
 
+
 train_stats = (
     'Training statistics: \n'
     '\tLearning rate : {}\n'
@@ -36,7 +37,12 @@ def train(self):
     batches = self.framework.shuffle()
     loss_op = self.framework.loss
 
-    for i, (x_batch, datum) in enumerate(batches):
+    loss_list = []
+    last_loss = np.inf
+    static_reduction = 0
+    epoch_count = 0
+
+    for i, (x_batch, datum, count_sample, size) in enumerate(batches):
         if not i: self.say(train_stats.format(
             self.FLAGS.lr, self.FLAGS.batch,
             self.FLAGS.epoch, self.FLAGS.save
@@ -63,13 +69,30 @@ def train(self):
         if self.FLAGS.summary:
             self.writer.add_summary(fetched[2], step_now)
 
-        form = 'step {} - loss {} - moving ave loss {}'
-        self.say(form.format(step_now, loss, loss_mva))
+        form = 'step {} - IoU loss {} - moving ave loss {}'
+        self.say(form.format(step_now, loss, loss_mva)) 
         profile += [(loss, loss_mva)]
 
         ckpt = (i+1) % (self.FLAGS.save // self.FLAGS.batch)
         args = [step_now, profile]
         if not ckpt: _save_ckpt(self, *args)
+        loss_list.append(loss)
+
+        if count_sample == size // self.FLAGS.batch:
+            epoch_count += 1
+            mean_loss = np.mean(loss_list)
+            loss_list = []
+            if mean_loss < last_loss:
+                print('IoU loss improved: {} to {}'.format(round(last_loss, 5), round(mean_loss, 5)))
+                last_loss = mean_loss
+                static_reduction = 0
+            else:
+                print('IoU loss has not improved')
+                static_reduction += 1
+
+        if static_reduction == int(self.FLAGS.earlystop):
+            print('EarlyStop in epoch: {}'.format(epoch_count))
+            break            
 
     if ckpt: _save_ckpt(self, *args)
 
